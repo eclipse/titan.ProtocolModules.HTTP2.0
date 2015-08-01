@@ -1,0 +1,168 @@
+/******************************************************************************
+* Copyright (c) 2015  Ericsson AB
+* All rights reserved. This program and the accompanying materials
+* are made available under the terms of the Eclipse Public License v1.0
+* which accompanies this distribution, and is available at
+* http://www.eclipse.org/legal/epl-v10.html
+*
+* Contributors:
+******************************************************************************/
+//
+//  File:               HTTP_Types.ttcn
+//  Rev:                R1C
+//  Prodnr:             CNL113796
+//  Contact:            http://ttcn.ericsson.se
+//  Reference:          RFC7230 - RFC7235
+
+module HTTP_Types
+{
+  import from General_Types all
+
+  external function ef_HTTP_Encode(in HTTP_Message pl_pdu) return octetstring
+  external function ef_HTTP_Decode(in octetstring pl_stream, in boolean pl_assemble_chunked:=true) return HTTP_Message
+
+  type record of CharstringList CharStrListList;
+
+  type enumerated TF
+  {
+    T (0),
+    F (1)
+  }
+
+  type set HTTP_Headers
+  {
+    CharStrListList       accept optional,
+    CharStrListList       accept_charset optional,
+    CharStrListList       accept_encoding optional,
+    CharStrListList       accept_language optional,
+    CharStrListList       accept_ranges optional,
+    integer               age optional,
+    Method_List           allow optional,
+    charstring            authorization optional,
+    CharStrListList       cache_control optional,
+    CharStrListList       connection optional,
+    charstring            content_disposition optional,
+    CharStrListList       content_encoding optional,
+    CharStrListList       content_language optional,
+    integer               content_length optional,
+    charstring            content_location optional,
+    charstring            content_range optional,
+    charstring            content_type optional,
+    charstring            cookie optional,
+    CharStrListList       dasl optional,
+    CharStrListList       dav optional,
+    charstring            date optional,
+    charstring            depth optional,
+    charstring            destination optional,
+    charstring            etag optional,
+    charstring            expect optional,
+    charstring            expires optional,
+    CharStrListList       forwarded optional,
+    charstring            fRom optional,
+    charstring            host optional,
+    charstring            http2_settings optional,
+    charstring            iF optional,
+    CharStrListList       if_match optional,
+    charstring            if_modified_since optional,
+    CharStrListList       if_none_match optional,
+    charstring            if_range optional,
+    charstring            if_schedule_tag_match optional,
+    charstring            if_unmodified_since optional,
+    charstring            last_modified optional,
+    charstring            location optional,
+    charstring            lock_token optional,
+    integer               max_forwards optional,
+    charstring            mime_version optional,
+    charstring            ordering_type optional,
+    charstring            origin optional,
+    TF                    overwrite optional,
+    charstring            position optional,
+    CharStrListList       pragma optional,
+    CharStrListList       prefer optional,
+    CharStrListList       preference_applied optional,
+    charstring            proxy_authenticate optional,
+    charstring            proxy_authorization optional,
+    charstring            range optional,
+    charstring            referer optional,
+    charstring            retry_after optional,
+    TF                    schedule_reply optional,
+    charstring            schedule_tag optional,
+    charstring            sec_websocket_accept optional,
+    charstring            sec_websocket_extensions optional,
+    charstring            sec_websocket_key optional,
+    charstring            sec_websocket_protocol optional,
+    charstring            sec_websocket_version optional,
+    charstring            server optional,
+    charstring            set_cookie optional,
+    charstring            slug optional,
+    charstring            strict_transport_security optional,
+    charstring            tE optional,
+    CharStrListList       tImeout optional,
+    CharStrListList       trailer optional,
+    CharStrListList       transfer_encoding optional,
+    CharStrListList       upgrade optional,
+    charstring            user_agent optional,
+    CharStrListList       vary optional,
+    CharStrListList       via optional,
+    CharStrListList       www_authenticate optional,
+    CharStrListList       warning optional,
+    UndefinedHeader_List  undefined_header_list optional
+  }
+
+  type record UndefinedHeader{
+    charstring            headerName,
+    charstring            headerValue
+  }
+
+  type set of UndefinedHeader UndefinedHeader_List;
+
+  type enumerated Method
+  {
+    GET,
+    HEAD,
+    POST,
+    PUT,
+    DELETE,
+    CONNECT,
+    OPTIONS,
+    TRACE
+  }
+  
+  type record of Method Method_List
+  
+  type record RequestLine
+  {
+    Method                method,
+    charstring            request_target,
+    integer               version_major,
+    integer               version_minor
+  }
+  
+  type record StatusLine
+  {
+    integer               version_major,
+    integer               version_minor,
+    integer               status_code,
+    charstring            reason_phrase
+  }
+
+  type record HTTP_ReqResp
+  {
+    StartLine             start_line,
+    HTTP_Headers          headers optional,
+    octetstring           body optional
+  }
+  
+  type union StartLine
+  {
+    RequestLine           request_line,
+    StatusLine            status_line
+  }
+
+  type union HTTP_Message
+  {
+    HTTP_ReqResp          msg,
+    charstring            raw_message
+  }
+  
+}with {extension "version R1C"}
