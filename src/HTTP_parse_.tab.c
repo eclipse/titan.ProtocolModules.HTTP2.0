@@ -88,7 +88,7 @@
 ******************************************************************************/
 //
 //  File:               HTTP_parse.y
-//  Rev:                R1C
+//  Rev:                R1D
 //  Prodnr:             CNL113796
 //  Contact:            http://ttcn.ericsson.se
 //  Reference:          RFC7230 - RFC7235

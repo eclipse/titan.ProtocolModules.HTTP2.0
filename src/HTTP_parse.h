@@ -9,7 +9,7 @@
 ******************************************************************************/
 //
 //  File:               HTTP.y
-//  Rev:                R1C
+//  Rev:                R1D
 //  Prodnr:             CNL113
 //  Updated:            2014-10-10
 //  Contact:            http://ttcn.ericsson.se

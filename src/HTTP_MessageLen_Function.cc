@@ -1,148 +1,204 @@
 /******************************************************************************
-* Copyright (c) 2015  Ericsson AB
+* Copyright (c) 2016  Ericsson AB
 * All rights reserved. This program and the accompanying materials
 * are made available under the terms of the Eclipse Public License v1.0
 * which accompanies this distribution, and is available at
 * http://www.eclipse.org/legal/epl-v10.html
 *
 * Contributors:
+*   Eduard Czimbalmos
 *   Eszter Susanszky
 ******************************************************************************/
 //
 //  File:               HTTP_MessageLen_Function.cc
-//  Rev:                R1C
+//  Rev:                R1D
 //  Prodnr:             CNL113796
 //  Contact:            http://ttcn.ericsson.se
 
 #include "HTTP_Types.hh"
 #include "HTTP_MessageLen.hh"
-//#include <stdlib.h>
+#include <string>
+#include <stdio.h>
+#include <strings.h>
+#include <ctype.h>
+
 
 using namespace HTTP__Types;
 
 namespace HTTP__MessageLen {
-  
+
   enum ReqResp {request, response, def};
   enum Transfer_Encoding {chunked, notchunked, none};
+
+  // return the length of the first line in the buffer including the \r\n
+  // So 2 is returned for empty line
+  // -1 if there is no \r\n in the buffer
+  // handles the line folding if needed
+
+  int get_http_line(const char *buff, int length, bool folding=false){
+    int ret_val=0;  // store the length of the line
+    bool end_found=false; // is the line ending found? 
+    while(length>0){
+      ret_val++;
+      length--;
+      if(*buff == '\n'){
+        if( !folding || !((length>0) && (buff[1] == ' ' || buff[1] == '\t')) ){  // not line folding. ie the \n is not followed with space or tab
+          end_found=true;  // this is the end of the line
+          break;
+        }
+      }
+      buff++;
+    }
+    return end_found?ret_val:-1;
+  }
   
-  INTEGER ef__HTTPMessage__len(const OCTETSTRING& pl__stream)
+  INTEGER f_HTTPMessage_len_common(
+      const OCTETSTRING& pl__stream,
+      const boolean connClosed,
+      const boolean head_req,
+      const boolean connect_req)
   {
     int stream_length = pl__stream.lengthof();
-    if(stream_length < 0) return -1;
-
-    int content_length = 0;
-    int end_of_startline = 0;
-    int end_of_headers = 0;
-    int end_of_te = 0;
-    int end_of_msg = 0;
-    int end_of_chunklngth = 0;
-
-    ReqResp reqresp = def;
-    Transfer_Encoding te = none;
+    if(stream_length < 16) return -1;  
+    // The smallest syntatically correct HTTP message is:
+    // A / HTTP/0.0\r\n\r\n
+    // Which is 16 octet
     
-    const unsigned char* streamptr = pl__stream;
-    const unsigned char* ptr = pl__stream;
-    const CHARSTRING crlf = "\r\n";
-    const CHARSTRING crlfcrlf = "\r\n\r\n";
+    const char *stream=(const char *)(const unsigned char *)pl__stream;
+    int line_length=-1;
+    int resp_code=0;
+    bool is_request=false;
+    bool is_chunked=false;
+    int content_length=-1;
     
-    // go to the end of stream, stop if end of startline found
-    while(ptr-streamptr + 2 <= stream_length && end_of_startline == 0)      
-    {
-      if(memcmp(ptr, (const char*)crlf, 2) == 0) end_of_startline = 1;
-      else ptr++;
+    // skeep leading /r/n
+    // there should'n be any but be conservative
+    while((line_length=get_http_line(stream,stream_length))==2){
+      stream+=line_length;
+      stream_length-=line_length;
     }
-    
-    // startline hasn't arrived
-    if(end_of_startline == 0) return -1;
-    else ptr += 2;
-    
-    //check if request or response
-    if(memcmp(streamptr, "HTTP/", 5) == 0 ) reqresp = response; else reqresp = request;
-    
-    // \r\n\r\n -> empty header list, return -1
-    if(memcmp(ptr, (const char*)crlf, 2) == 0 ) return -1;
-    
-    while(ptr-streamptr + 4 <= stream_length && end_of_headers == 0)
+    if(line_length==-1){ // there is no whole line in the buffer
+      return -1;
+    }
+    // parse the header line
     {
-      if(memcmp(ptr, (const char*)crlfcrlf, 4) == 0 ) {end_of_headers = 1;}
-      else
-      {
-        if(ptr-streamptr + 15 <= stream_length && strncasecmp((const char*)ptr, "Content-Length:", 15) == 0)
-        {
-          ptr+= 15;
-          content_length = (int)strtol((const char*)ptr, NULL, 10); 
-        } else if(ptr-streamptr + 18 <= stream_length && strncasecmp((const char*)ptr, "Transfer-Encoding:", 18) == 0)
-        {
-          te = notchunked;
-          ptr += 18;
-          
-          while(end_of_te == 0)
-          {
-            if(ptr-streamptr + 2 <= stream_length && memcmp(ptr, (const char*)crlf, 2) == 0 ) {end_of_te = 1; ptr += 2;}
-            else if(ptr-streamptr + 9 <= stream_length && !strncasecmp((const char*)ptr, "chunked\r\n", 9)) {te = chunked; end_of_te = 1; ptr += 9;}   //chunked/r/n (last encoding is chunked)
-            else { ptr++; }
-          }
-        
-          if(end_of_te == 0) return -1;
-        } else ptr++;
+      std::string str(stream,line_length);
+      if(sscanf(str.c_str(),"HTTP/%*d.%*d %d ",&resp_code)==1){
+        // response received
+        is_request=false;
+      } else {
+        // it should be a request
+        is_request=true;
       }
     }
-    
-    if(end_of_headers == 0) return -1;
-    else ptr += 4;
-    
-    if( te == none) {
-    
-      if(content_length > 0) return ptr-streamptr + content_length;
-      else if( reqresp == request ) return ptr-streamptr;
-      else if( reqresp == response ) return -1;
-      
-    } else if(te == notchunked) {
-    
-      if( reqresp == request ) return ptr-streamptr;
-      else return -1;
-      
-    } else if(te == chunked) {
-      
-      const unsigned char* chunksize_ptr = ptr;
-      while(ptr-streamptr + 2 <= stream_length && end_of_chunklngth == 0)
-      {
-        if(memcmp(ptr, (const char*)crlf, 2) == 0) end_of_chunklngth = 1;
-        else ptr++;
+    stream+=line_length;
+    stream_length-=line_length;
+
+    // search for the end of the headers
+    while((line_length=get_http_line(stream,stream_length,true))!=2){
+      if(line_length==-1){ // there is no whole line in the buffer
+        return -1;
       }
-      if(end_of_chunklngth == 0) return 0;
-      
-      int chunk_length = (int)strtol((const char*)chunksize_ptr, NULL, 16);
-      
-      while(chunk_length != 0 && ptr-streamptr <= stream_length)
-      {
-        end_of_chunklngth = 0;
-        
-        // chunksize + \r\n + next char
-        ptr += chunk_length + 2 + 1;
-        
-        chunksize_ptr = ptr;
-        while(ptr-streamptr + 2 <= stream_length && end_of_chunklngth == 0)
-        {
-          if(memcmp(ptr, (const char*)crlf, 2) == 0) end_of_chunklngth = 1;
-          else ptr++;
+      // check for specific headers
+      // Content-Length
+      if((line_length>17) && (strncasecmp(stream, "Content-Length:", 15) == 0) ){ // the minimum length of the Content-Length is 18: 15 (Content-Length:) + at least 1 digit + crlf
+        content_length = (int)strtol(stream+15, NULL, 10);
+      }
+      if((line_length>26) && (strncasecmp(stream, "Transfer-Encoding:", 18) == 0) ){ // the minimum length 27: 18 (Transfer-Encoding:) + 7 (chunked) + crlf
+        std::string str(stream+18,line_length-18); // just the data part
+        if(str.find("chunked")!=std::string::npos){
+          is_chunked=true;
         }
-        if(end_of_chunklngth == 0) return -1;
-        else chunk_length = (int)strtol((const char*)chunksize_ptr, NULL, 16);
       }
-      if(chunk_length > 0) return -1;
-      
-      //find \r\n\r\n
-      while(ptr-streamptr + 4 <= stream_length && end_of_msg == 0)
-      {
-        if( memcmp(ptr, (const char*)crlfcrlf, 4) == 0) end_of_msg = 1;
-        else ptr++;
+      stream+=line_length;
+      stream_length-=line_length;
+    }
+    
+    // skip the empty line
+    stream+=line_length;
+    stream_length-=line_length;
+    
+    // See RFC7230 3.3.3
+    if( !is_request && ( head_req || (resp_code==204) || (resp_code==304)  || (resp_code>=100  && resp_code<=199))){ // See RFC7230 3.3.3 1.
+      // no body
+      const char *stream_begin=(const char *)(const unsigned char *)pl__stream;
+      return stream-stream_begin;
+    } else if(!is_request && connect_req && (resp_code>=200  && resp_code<=299)){ // See RFC7230 3.3.3 2.
+      // no body
+      const char *stream_begin=(const char *)(const unsigned char *)pl__stream;
+      return stream-stream_begin;
+    } else if(is_chunked){ // See RFC7230 3.3.3 3.
+      int chunk_length=-1;
+      if((line_length=get_http_line(stream,stream_length))==-1){
+        return -1;
       }
-      if(end_of_msg == 0) return -1;
-      
-      return ptr+4-streamptr;
+      chunk_length=(int)strtol(stream, NULL, 16);
+      stream+=line_length;
+      stream_length-=line_length;
+      while(chunk_length>0){
+        if(chunk_length<=stream_length){ // skip the chunk data
+          stream+=chunk_length;
+          stream_length-=chunk_length;
+        }
+        // read the CRLF
+        if((line_length=get_http_line(stream,stream_length))!=2){
+          return -1;
+        }
+        stream+=line_length;
+        stream_length-=line_length;
+        // read the next chunk size
+        if((line_length=get_http_line(stream,stream_length))==-1){
+          return -1;
+        }
+        chunk_length=(int)strtol(stream, NULL, 16);
+        stream+=line_length;
+        stream_length-=line_length;
+      }
+      // skip trailers
+      while((line_length=get_http_line(stream,stream_length))!=2){
+        if(line_length==-1){ // there is no whole line in the buffer
+          return -1;
+        }
+        stream+=line_length;
+        stream_length-=line_length;
+      }
+      // skip the final CRLF
+      stream+=line_length;
+      stream_length-=line_length;
+      const char *stream_begin=(const char *)(const unsigned char *)pl__stream;
+      return stream-stream_begin;
+    } else if(content_length>=0){ // See RFC7230 3.3.3 5.
+      const char *stream_begin=(const char *)(const unsigned char *)pl__stream;
+      return stream-stream_begin+content_length;
+    } else if(is_request){ // See RFC7230 3.3.3 6.
+      const char *stream_begin=(const char *)(const unsigned char *)pl__stream;
+      return stream-stream_begin;
+    } else if(connClosed){ // See RFC7230 3.3.3 7.
+      return pl__stream.lengthof();
     }
     
     return -1;
+
   }
+
+  INTEGER ef__HTTPMessage__len(const OCTETSTRING& pl__stream)
+  {
+    return(f_HTTPMessage_len_common(pl__stream, false,false,false));
+  }
+
+  INTEGER ef__HTTPMessage__len__forConnectResp(const OCTETSTRING& pl__stream)
+  {
+    return(f_HTTPMessage_len_common(pl__stream, false,false,true));
+  }
+
+  INTEGER ef__HTTPMessage__len__forHeadResp(const OCTETSTRING& pl__stream)
+  {
+    return(f_HTTPMessage_len_common(pl__stream, false,true,false));
+  }
+
+  INTEGER ef__HTTPMessage__len__forConnClosed(const OCTETSTRING& pl__stream)
+  {
+    return(f_HTTPMessage_len_common(pl__stream, true,false,false));
+  }
+
 }

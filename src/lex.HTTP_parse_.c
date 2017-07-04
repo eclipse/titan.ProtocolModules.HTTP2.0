@@ -2984,7 +2984,7 @@ char *HTTP_parse_text;
 ******************************************************************************/
 //
 //  File:               HTTP.l
-//  Rev:                R1C
+//  Rev:                R1D
 //  Prodnr:             CNL113796
 //  Contact:            http://ttcn.ericsson.se
 //  Reference:          RFC7230 - RFC7235

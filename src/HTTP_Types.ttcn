@@ -9,7 +9,7 @@
 ******************************************************************************/
 //
 //  File:               HTTP_Types.ttcn
-//  Rev:                R1C
+//  Rev:                R1D
 //  Prodnr:             CNL113796
 //  Contact:            http://ttcn.ericsson.se
 //  Reference:          RFC7230 - RFC7235
@@ -165,4 +165,4 @@ module HTTP_Types
     charstring            raw_message
   }
   
-}with {extension "version R1C"}
+}with {extension "version R1D"}
