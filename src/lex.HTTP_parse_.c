@@ -2973,7 +2973,7 @@ char *HTTP_parse_text;
 #line 1 "HTTP_parse.l"
 #line 3 "HTTP_parse.l"
 /******************************************************************************
-* Copyright (c) 2015  Ericsson AB
+* Copyright (c) 2000-2018 Ericsson Telecom AB AB
 * All rights reserved. This program and the accompanying materials
 * are made available under the terms of the Eclipse Public License v2.0
 * which accompanies this distribution, and is available at
